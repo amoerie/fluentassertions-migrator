@@ -11,7 +11,21 @@ using Microsoft.Extensions.Logging;
 // https://www.meziantou.net/using-roslyn-to-analyze-and-rewrite-code-in-a-solution.htm
 // https://stackoverflow.com/questions/31481251/applying-multiple-changes-to-a-solution-in-roslyn
 
-var solutionFile = new FileInfo("D:\\git\\copy_pow4\\POW4.All.sln");
+if (args.Length == 0)
+{
+    Console.WriteLine("FluentAssertions to xUnit Migration Tool");
+    Console.WriteLine("Usage: FluentAssertionsMigrator.exe <path-to-solution-file>");
+    Console.WriteLine("Example: FluentAssertionsMigrator.exe C:\\Projects\\MySolution.sln");
+    return 1;
+}
+
+var solutionFile = new FileInfo(args[0]);
+
+if (!solutionFile.Exists)
+{
+    Console.WriteLine($"Error: Solution file not found at path: {solutionFile.FullName}");
+    return 1;
+}
 
 var loggerFactory = LoggerFactory.Create(builder =>
 {
@@ -32,6 +46,8 @@ var solutionMigrator = new FluentAssertionsSolutionMigrator(
 );
 
 await solutionMigrator.MigrateAsync(solutionFile);
+
+return 0;
 
 public sealed class FluentAssertionsSolutionMigrator(
     ILogger<FluentAssertionsSolutionMigrator> logger,
