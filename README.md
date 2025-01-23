@@ -93,3 +93,8 @@ Always review the generated code and test thoroughly after migration.
 ## Contributing
 
 Feel free to submit issues and pull requests but I'm not making any promises. :-) 
+
+## Is this free?
+
+Yes, it is! 
+If you really like this and want to give something in return, donations can be made here: https://github.com/sponsors/amoerie?frequency=one-time. Thanks!
