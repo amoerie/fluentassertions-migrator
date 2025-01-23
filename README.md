@@ -1,6 +1,8 @@
 # FluentAssertions to xUnit Migration Tool
 
 A .NET tool that automatically converts FluentAssertions test assertions to their xUnit equivalents.
+Regardless of how we feel about the upcoming license changes in the next major version of FluentAssertions, I imagine many of us will find ourselves in the position of having to strip out FluentAssertions of our codebases. 
+I know I will. This tool tries to automate that process as much as possible. 
 
 ## Based on the following sources
 
