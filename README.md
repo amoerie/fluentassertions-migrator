@@ -2,6 +2,14 @@
 
 A .NET tool that automatically converts FluentAssertions test assertions to their xUnit equivalents.
 
+## Based on the following sources
+
+- https://github.com/xunit/xunit/issues/3133
+- https://www.meziantou.net/using-roslyn-to-analyze-and-rewrite-code-in-a-solution.htm
+- https://stackoverflow.com/questions/31481251/applying-multiple-changes-to-a-solution-in-rosly
+- ... 
+
+
 ## Installation
 
 ```bash
