@@ -5,7 +5,15 @@
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>migrate-fluentassertions</ToolCommandName>
+        <PackageOutputPath>./nupkg</PackageOutputPath>
+        <Version>1.0.0</Version>
+        <PackageId>FluentAssertionsMigrator</PackageId>
+        <Authors>Alexander Moerman</Authors>
+        <Description>Tool to migrate FluentAssertions to xUnit assertions</Description>
     </PropertyGroup>
+
 
     <ItemGroup>
       <PackageReference Include="Microsoft.Build.Locator" Version="1.7.8" />
