@@ -25,12 +25,12 @@ dotnet tool install -g FluentAssertionsMigrator
 **Before you run this tool, be sure to restore the nuget packages of your solution. This tool uses semantic analysis in some places that will not work without these packages.**
 
 ```bash
-migrate-assertions <path-to-solution-file>
+migrate-fluentassertions <path-to-solution-file>
 ```
 
 Example:
 ```bash
-migrate-assertions C:\Projects\MySolution.sln
+migrate-fluentassertions C:\Projects\MySolution.sln
 ```
 
 ## What it does
