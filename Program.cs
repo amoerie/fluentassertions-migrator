@@ -131,9 +131,17 @@ public sealed class FluentAssertionsDocumentMigrator(
         logger.LogTrace(">> Migrating: {Document}", document.FilePath);
 
         var originalRoot = await document.GetSyntaxRootAsync();
+        
+        // Remove FluentAssertions using directive
+        var rootWithoutUsingFluentAssertions = originalRoot?.RemoveNodes(
+            originalRoot.DescendantNodes()
+                .OfType<UsingDirectiveSyntax>()
+                .Where(u => u.Name?.ToString().StartsWith("FluentAssertions") == true),
+            SyntaxRemoveOptions.KeepNoTrivia);
+            
         var lazySemanticModel = new Lazy<Task<SemanticModel?>>(async () => await document.GetSemanticModelAsync());
         var syntaxRewriter = syntaxRewriterFactory.Create(lazySemanticModel);
-        var migratedRoot = syntaxRewriter.Visit(originalRoot);
+        var migratedRoot = syntaxRewriter.Visit(rootWithoutUsingFluentAssertions);
 
         if (migratedRoot is null || migratedRoot.IsEquivalentTo(originalRoot))
         {
