@@ -521,6 +521,66 @@ public sealed class FluentAssertionsSyntaxRewriter(
             logger.LogTrace("Rewriting .Should().BeOneOf() in {Node}", node);
             return CreateAssertExpression($"Assert.Contains({actualValueExpression}, {expectedValue})", node);
         }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().ContainAll"))
+        {
+            // Get all the arguments passed to ContainAll
+            var expectedValues = shouldInvocationExpression.ArgumentList.Arguments
+                .Select(arg => arg.Expression)
+                .ToList();
+            
+            // Get the target string being tested (e.g. "abc")
+            var targetString = actualValueExpression;
+
+            // Create a collection expression with all the arguments
+            var collectionExpression = SyntaxFactory.CollectionExpression(
+                SyntaxFactory.SeparatedList<CollectionElementSyntax>(
+                    expectedValues.SelectMany(value => new SyntaxNodeOrToken[] {
+                            SyntaxFactory.ExpressionElement(value),
+                            SyntaxFactory.Token(SyntaxKind.CommaToken)
+                        })
+                        .Take(expectedValues.Count * 2 - 1) // Remove the last comma
+                        .ToArray()
+                )
+            );
+
+            // Create the lambda for Assert.All
+            var lambdaParameter = SyntaxFactory.Parameter(
+                SyntaxFactory.Identifier("substring"));
+            
+            var containsExpression = SyntaxFactory.InvocationExpression(
+                SyntaxFactory.MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    SyntaxFactory.IdentifierName("Assert"),
+                    SyntaxFactory.IdentifierName("Contains")))
+                .WithArgumentList(
+                    SyntaxFactory.ArgumentList(
+                        SyntaxFactory.SeparatedList(new[] {
+                            SyntaxFactory.Argument(SyntaxFactory.IdentifierName("substring")),
+                            SyntaxFactory.Argument(targetString)
+                        })));
+
+            var lambda = SyntaxFactory.SimpleLambdaExpression(
+                lambdaParameter, 
+                containsExpression);
+
+            // Create the full Assert.All expression
+            var assertAllExpression = SyntaxFactory.InvocationExpression(
+                SyntaxFactory.MemberAccessExpression(
+                    SyntaxKind.SimpleMemberAccessExpression,
+                    SyntaxFactory.IdentifierName("Assert"),
+                    SyntaxFactory.IdentifierName("All")))
+                .WithArgumentList(
+                    SyntaxFactory.ArgumentList(
+                        SyntaxFactory.SeparatedList([
+                            SyntaxFactory.Argument(collectionExpression),
+                            SyntaxFactory.Argument(lambda)
+                        ])));
+
+            logger.LogTrace("Rewriting .Should().ContainAll() in {Node}", node);
+            return CreateAssertExpression(assertAllExpression, node);
+        }
+
         
         return base.VisitInvocationExpression(shouldInvocationExpression);
     }
@@ -593,6 +653,13 @@ public sealed class FluentAssertionsSyntaxRewriter(
     private static ExpressionSyntax CreateAssertExpression(string assertCode, ExpressionSyntax originalNode)
     {
         return SyntaxFactory.ParseExpression(assertCode)
+            .WithLeadingTrivia(originalNode.GetLeadingTrivia())
+            .WithTrailingTrivia(originalNode.GetTrailingTrivia());
+    }
+
+    private static ExpressionSyntax CreateAssertExpression(ExpressionSyntax assertCode, ExpressionSyntax originalNode)
+    {
+        return assertCode
             .WithLeadingTrivia(originalNode.GetLeadingTrivia())
             .WithTrailingTrivia(originalNode.GetTrailingTrivia());
     }
