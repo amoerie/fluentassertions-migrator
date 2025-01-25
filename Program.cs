@@ -270,20 +270,46 @@ public sealed class FluentAssertionsSyntaxRewriter(
         {
             var exceptionType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
             logger.LogTrace("Rewriting .Should().Throw() in {Node}", node);
-            if (exceptionType != null)
+            if (exceptionType is not null)
             {
                 return CreateAssertExpression($"Assert.Throws<{exceptionType}>({actualValueExpression})", node);
             }
+            return CreateAssertExpression($"Assert.Throws({actualValueExpression})", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotThrow"))
+        {
+            var exceptionType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+            logger.LogTrace("Rewriting .Should().NotThrow() in {Node}", node);
+            if (exceptionType is not null)
+            {
+                return CreateAssertExpression($"Assert.IsNotType<{exceptionType}>(Record.Exception({actualValueExpression}))", node);
+            }
+
+            return CreateAssertExpression($"Assert.Null(Record.Exception({actualValueExpression}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().ThrowAsync"))
         {
             var exceptionType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
             logger.LogTrace("Rewriting .Should().ThrowAsync() in {Node}", node);
-            if (exceptionType != null)
+            if (exceptionType is not null)
             {
                 return CreateAssertExpression($"Assert.ThrowsAsync<{exceptionType}>({actualValueExpression})", node);
             }
+            return CreateAssertExpression($"Assert.ThrowsAsync({actualValueExpression})", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotThrowAsync"))
+        {
+            var exceptionType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+            logger.LogTrace("Rewriting .Should().NotThrowAsync() in {Node}", node);
+            if (exceptionType is not null)
+            {
+                return CreateAssertExpression($"Assert.IsNotType<{exceptionType}>(await Record.ExceptionAsync({actualValueExpression}))", node);
+            }
+
+            return CreateAssertExpression($"Assert.Null(await Record.ExceptionAsync({actualValueExpression}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeOfType"))
@@ -298,6 +324,21 @@ public sealed class FluentAssertionsSyntaxRewriter(
             if (expectedType != null)
             {
                 return CreateAssertExpression($"Assert.True(({actualValueExpression}) is {expectedType})", node);
+            }
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeOfType"))
+        {
+            var expectedType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+            if (expectedType is TypeOfExpressionSyntax typeOfExpression)
+            {
+                expectedType = typeOfExpression.Type;
+            }
+
+            logger.LogTrace("Rewriting .Should().NotBeOfType() in {Node}", node);
+            if (expectedType != null)
+            {
+                return CreateAssertExpression($"Assert.False(({actualValueExpression}) is {expectedType})", node);
             }
         }
 
