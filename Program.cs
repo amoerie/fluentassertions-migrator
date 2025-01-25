@@ -581,6 +581,19 @@ public sealed class FluentAssertionsSyntaxRewriter(
             return CreateAssertExpression(assertAllExpression, node);
         }
 
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().ContainEquivalentOf"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().ContainEquivalentOf() in {Node}", node);
+            return CreateAssertExpression($"Assert.Contains({expectedValue}, {actualValueExpression}, StringComparison.OrdinalIgnoreCase)", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotContainEquivalentOf"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().NotContainEquivalentOf() in {Node}", node);
+            return CreateAssertExpression($"Assert.DoesNotContain({expectedValue}, {actualValueExpression}, StringComparison.OrdinalIgnoreCase)", node);
+        }
         
         return base.VisitInvocationExpression(shouldInvocationExpression);
     }
