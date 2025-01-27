@@ -55,32 +55,49 @@ This tool analyzes your test files and converts FluentAssertions API calls to th
 ### Collections
 - `.Should().BeEmpty()` → `Assert.Empty()`
 - `.Should().NotBeEmpty()` → `Assert.NotEmpty()`
-- `.Should().HaveCount()` → `Assert.Equal(count)` or `Assert.Single()`
+- `.Should().HaveCount()` → `Assert.Equal(count)` or `Assert.Single()` or `Assert.Empty()`
 - `.Should().Contain()` → `Assert.Contains()`
 - `.Should().NotContain()` → `Assert.DoesNotContain()`
+- `.Should().BeNullOrEmpty()` → `Assert.False(?.Any() ?? false)`
+- `.Should().NotBeNullOrEmpty()` → `Assert.True(?.Any())`
+- `.Should().BeOneOf()` → `Assert.Contains()`
+- `.Should().ContainEquivalentOf()` → `Assert.Contains()`
+- `.Should().NotContainEquivalentOf()` → `Assert.DoesNotContain()`
 
 ### Strings
 - `.Should().StartWith()` → `Assert.StartsWith()`
 - `.Should().EndWith()` → `Assert.EndsWith()`
+- `.Should().ContainAll()` → `Assert.All(strings, s => Assert.Contains(s, x))`
 
 ### Type checks
 - `.Should().BeOfType()` → `Assert.True(x is Type)`
+- `.Should().NotBeOfType()` → `Assert.False(x is Type)`
 
 ### Exceptions
+- `.Should().Throw()` → `Assert.Throws()`
+- `.Should().NotThrow()` → `Assert.Nulll(Record.Exception())`
 - `.Should().Throw<T>()` → `Assert.Throws<T>()`
+- `.Should().NotThrow<T>()` → `Assert.IsType<T>(Record.Exception())`
+- `.Should().ThrowAsync()` → `Assert.ThrowsAsync()`
+- `.Should().NotThrowAsync()` → `Assert.Null(Record.ExceptionAsync())`
 - `.Should().ThrowAsync<T>()` → `Assert.ThrowsAsync<T>()`
+- `.Should().NotThrowAsync<T>()` → `Assert.IsNotType<T>(Record.ExceptionAsync())`
 
 ### Numeric comparisons
 - `.Should().BeGreaterThan()` → `Assert.True(x > y)`
 - `.Should().BeLessThan()` → `Assert.True(x < y)`
-- `.Should().BeCloseTo()` → Custom assertion
-- `.Should().NotBeCloseTo()` → Custom assertion
+- `.Should().BeCloseTo()` → `Assert.True(x > (expected - precision) && x < (expected + precision))`
+- `.Should().NotBeCloseTo()` → `Assert.False(x > (expected - precision) && x < (expected + precision))`
 
 ### Date comparisons
 - `.Should().BeBefore()` → `Assert.True(x < y)`
+- `.Should().NotBeBefore()` → `Assert.False(x < y)`
 - `.Should().BeAfter()` → `Assert.True(x > y)`
+- `.Should().NotBeAfter()` → `Assert.False(x > y)`
 - `.Should().BeOnOrBefore()` → `Assert.True(x <= y)`
+- `.Should().NotBeOnOrBefore()` → `Assert.False(x <= y)`
 - `.Should().BeOnOrAfter()` → `Assert.True(x >= y)`
+- `.Should().NotBeOnOrAfter()` → `Assert.False(x >= y)`
 
 ## Important Note
 
