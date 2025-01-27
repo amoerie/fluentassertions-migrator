@@ -12,6 +12,11 @@
         <PackageId>FluentAssertionsMigrator</PackageId>
         <Authors>Alexander Moerman</Authors>
         <Description>Tool to migrate FluentAssertions to xUnit assertions</Description>
+        <Configurations>Debug;Release</Configurations>
+        <OutputPath>bin\$(Configuration)\</OutputPath>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
 

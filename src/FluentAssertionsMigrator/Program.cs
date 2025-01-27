@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -164,11 +165,21 @@ public sealed class FluentAssertionsSyntaxRewriterFactory(ILoggerFactory loggerF
     }
 }
 
-public sealed class FluentAssertionsSyntaxRewriter(
+public sealed partial class FluentAssertionsSyntaxRewriter(
     ILogger<FluentAssertionsSyntaxRewriter> logger,
     Lazy<Task<SemanticModel?>> lazySemanticModel)
     : CSharpSyntaxRewriter
 {
+    public override SyntaxNode? VisitAwaitExpression(AwaitExpressionSyntax node)
+    {
+        if (TryResolveActualValueFromAwaitExpression(node, out var invocation, out var actualValueExpression))
+        {
+            return HandleAssertionExpression(node, invocation, actualValueExpression);
+        }
+
+        return base.VisitAwaitExpression(node);
+    }
+    
     public override SyntaxNode? VisitConditionalAccessExpression(ConditionalAccessExpressionSyntax node)
     {
         if (TryResolveActualValueFromConditionalAccessExpression(node, out var invocation,
@@ -266,9 +277,9 @@ public sealed class FluentAssertionsSyntaxRewriter(
             return CreateAssertExpression(assertCode, node);
         }
 
-        if (shouldInvocationExpressionAsString.EndsWith(".Should().Throw"))
+        if (ThrowRegex().IsMatch(shouldInvocationExpressionAsString))
         {
-            var exceptionType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+            var exceptionType = GetGenericTypeArgument(shouldInvocationExpression) ?? GetTypeOfArgument(shouldInvocationExpression);
             logger.LogTrace("Rewriting .Should().Throw() in {Node}", node);
             if (exceptionType is not null)
             {
@@ -277,9 +288,9 @@ public sealed class FluentAssertionsSyntaxRewriter(
             return CreateAssertExpression($"Assert.Throws({actualValueExpression})", node);
         }
 
-        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotThrow"))
+        if (NotThrowRegex().IsMatch(shouldInvocationExpressionAsString))
         {
-            var exceptionType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+            var exceptionType = GetGenericTypeArgument(shouldInvocationExpression) ?? GetTypeOfArgument(shouldInvocationExpression);
             logger.LogTrace("Rewriting .Should().NotThrow() in {Node}", node);
             if (exceptionType is not null)
             {
@@ -289,56 +300,62 @@ public sealed class FluentAssertionsSyntaxRewriter(
             return CreateAssertExpression($"Assert.Null(Record.Exception({actualValueExpression}))", node);
         }
 
-        if (shouldInvocationExpressionAsString.EndsWith(".Should().ThrowAsync"))
+        if (ThrowAsyncRegex().IsMatch(shouldInvocationExpressionAsString))
         {
-            var exceptionType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
             logger.LogTrace("Rewriting .Should().ThrowAsync() in {Node}", node);
-            if (exceptionType is not null)
+            
+            if (GetGenericTypeArgument(shouldInvocationExpression) is { } genericType)
             {
-                return CreateAssertExpression($"Assert.ThrowsAsync<{exceptionType}>({actualValueExpression})", node);
+                return CreateAssertExpression($"await Assert.ThrowsAsync<{genericType}>({actualValueExpression})", node);
             }
-            return CreateAssertExpression($"Assert.ThrowsAsync({actualValueExpression})", node);
+            if (GetTypeOfArgument(shouldInvocationExpression) is { } typeofArgument)
+            {
+                return CreateAssertExpression($"await Assert.ThrowsAsync({typeofArgument}, {actualValueExpression})", node);
+            }
+            
+            return CreateAssertExpression($"await Assert.ThrowsAsync({actualValueExpression})", node);
         }
 
-        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotThrowAsync"))
+        if (NotThrowAsyncRegex().IsMatch(shouldInvocationExpressionAsString))
         {
-            var exceptionType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
             logger.LogTrace("Rewriting .Should().NotThrowAsync() in {Node}", node);
-            if (exceptionType is not null)
+            
+            if (GetGenericTypeArgument(shouldInvocationExpression) is { } genericType)
             {
-                return CreateAssertExpression($"Assert.IsNotType<{exceptionType}>(await Record.ExceptionAsync({actualValueExpression}))", node);
+                return CreateAssertExpression($"Assert.IsNotType<{genericType}>(await Record.ExceptionAsync({actualValueExpression}))", node);
             }
-
+            
+            if (GetTypeOfArgument(shouldInvocationExpression) is { } typeofArgument)
+            {
+                return CreateAssertExpression($"Assert.IsNotType({typeofArgument}, await Record.ExceptionAsync({actualValueExpression}))", node);
+            }
+            
             return CreateAssertExpression($"Assert.Null(await Record.ExceptionAsync({actualValueExpression}))", node);
         }
 
-        if (shouldInvocationExpressionAsString.EndsWith(".Should().BeOfType"))
+        if (BeOfTypeRegex().IsMatch(shouldInvocationExpressionAsString))
         {
-            var expectedType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
-            if (expectedType is TypeOfExpressionSyntax typeOfExpression)
-            {
-                expectedType = typeOfExpression.Type;
-            }
-
             logger.LogTrace("Rewriting .Should().BeOfType() in {Node}", node);
-            if (expectedType != null)
+            if (GetGenericTypeArgument(shouldInvocationExpression) is { } genericType)
             {
-                return CreateAssertExpression($"Assert.True(({actualValueExpression}) is {expectedType})", node);
+                return CreateAssertExpression($"Assert.True(({actualValueExpression}) is {genericType})", node);
+            }
+            if (GetTypeOfArgument(shouldInvocationExpression) is { } typeofArgument)
+            {
+                return CreateAssertExpression($"Assert.True(({actualValueExpression}) is {typeofArgument})", node);
             }
         }
 
-        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeOfType"))
+        if (NotBeOfTypeRegex().IsMatch(shouldInvocationExpressionAsString))
         {
-            var expectedType = shouldInvocationExpression.ArgumentList.Arguments.FirstOrDefault()?.Expression;
-            if (expectedType is TypeOfExpressionSyntax typeOfExpression)
-            {
-                expectedType = typeOfExpression.Type;
-            }
-
             logger.LogTrace("Rewriting .Should().NotBeOfType() in {Node}", node);
-            if (expectedType != null)
+            if (GetGenericTypeArgument(shouldInvocationExpression) is { } genericType)
             {
-                return CreateAssertExpression($"Assert.False(({actualValueExpression}) is {expectedType})", node);
+                return CreateAssertExpression($"Assert.False(({actualValueExpression}) is {genericType})", node);
+            }
+            if (GetTypeOfArgument(shouldInvocationExpression) is { } typeofArgument)
+            {
+                return CreateAssertExpression($"Assert.False(({actualValueExpression}) is {typeofArgument})", node);
             }
         }
 
@@ -682,6 +699,26 @@ public sealed class FluentAssertionsSyntaxRewriter(
         return false;
     }
 
+    // Tries to resolve the part before .Should() when await is used
+    // e.g. await someAction.Should().ThrowAsync(...)
+    private static bool TryResolveActualValueFromAwaitExpression(
+        AwaitExpressionSyntax awaitExpression,
+        [NotNullWhen(true)] out InvocationExpressionSyntax? shouldInvocation,
+        [NotNullWhen(true)] out ExpressionSyntax? actualValueExpression)
+    {
+        if (awaitExpression.Expression is InvocationExpressionSyntax invocationExpression
+            && TryResolveActualValueFromShouldInvocationExpression(invocationExpression, out var innerActualValueExpression))
+        {
+            actualValueExpression = innerActualValueExpression;
+            shouldInvocation = invocationExpression;
+            return true;
+        } 
+
+        actualValueExpression = null;
+        shouldInvocation = null;
+        return false;
+    }
+
     // Tries to resolve the part before .Should()
     // e.g. myVariable.Should().Be(...)
     private static bool TryResolveActualValueFromShouldInvocationExpression(
@@ -703,6 +740,36 @@ public sealed class FluentAssertionsSyntaxRewriter(
 
         actualValueExpression = null;
         return false;
+    }
+
+    private TypeSyntax? GetGenericTypeArgument(InvocationExpressionSyntax shouldInvocationExpression, int index = 0)
+    {
+        var typeArguments = shouldInvocationExpression
+            .DescendantNodes()
+            .OfType<GenericNameSyntax>()
+            .FirstOrDefault()
+            ?.TypeArgumentList
+            .Arguments;
+
+        if (typeArguments is null || typeArguments.Value.Count <= index)
+        {
+            return null;
+        }
+        
+        return typeArguments.Value[index];
+    }
+
+    private TypeSyntax? GetTypeOfArgument(InvocationExpressionSyntax shouldInvocationExpression, int index = 0)
+    {
+        var arguments = shouldInvocationExpression.ArgumentList.Arguments;
+        if (arguments.Count <= index)
+        {
+            return null;
+        }
+        
+        return arguments[index].Expression is TypeOfExpressionSyntax typeOfExpression
+            ? typeOfExpression.Type
+            : null;
     }
 
     private static ExpressionSyntax CreateAssertExpression(string assertCode, ExpressionSyntax originalNode)
@@ -819,4 +886,22 @@ public sealed class FluentAssertionsSyntaxRewriter(
             return null;
         }
     }
+    
+    [GeneratedRegex(@"\.Should\(\)\.Throw(?:<[^>]+>)?$")]
+    private static partial Regex ThrowRegex();
+    
+    [GeneratedRegex(@"\.Should\(\)\.NotThrow(?:<[^>]+>)?$")]
+    private static partial Regex NotThrowRegex();
+    
+    [GeneratedRegex(@"\.Should\(\)\.ThrowAsync(?:<[^>]+>)?$")]
+    private static partial Regex ThrowAsyncRegex();
+    
+    [GeneratedRegex(@"\.Should\(\)\.NotThrowAsync(?:<[^>]+>)?$")]
+    private static partial Regex NotThrowAsyncRegex();
+    
+    [GeneratedRegex(@"\.Should\(\)\.BeOfType(?:<[^>]+>)?$")]
+    private static partial Regex BeOfTypeRegex();
+    
+    [GeneratedRegex(@"\.Should\(\)\.NotBeOfType(?:<[^>]+>)?$")]
+    private static partial Regex NotBeOfTypeRegex();
 }

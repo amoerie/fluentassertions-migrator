@@ -105,7 +105,7 @@ While this tool automates a significant portion of the migration, manual review 
 
 1. Some complex FluentAssertions may not have direct xUnit equivalents
 2. Custom assertion messages will need to be reformatted
-3. Chain assertions will need to be split into multiple Assert statements
+3. Chain assertions (using .And) will need to be split into multiple Assert statements
 4. Some assertions might require additional null checks or type conversions
 
 Always review the generated code and test thoroughly after migration.
