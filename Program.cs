@@ -523,13 +523,6 @@ public sealed class FluentAssertionsSyntaxRewriter(
             return CreateAssertExpression($"Assert.False(({actualValueExpression}) >= ({expectedValue}))", node);
         }
 
-        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeOnOrAfter"))
-        {
-            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
-            logger.LogTrace("Rewriting .Should().NotBeOnOrAfter() in {Node}", node);
-            return CreateAssertExpression($"Assert.False(({actualValueExpression}) >= ({expectedValue}))", node);
-        }
-
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeNullOrEmpty"))
         {
             logger.LogTrace("Rewriting .Should().BeNullOrEmpty() in {Node}", node);
