@@ -917,10 +917,10 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
     [GeneratedRegex(@"\.Should\(\)\.NotThrowAsync(?:<[^>]+>)?$")]
     private static partial Regex NotThrowAsyncRegex();
 
-    [GeneratedRegex(@"\.Should\(\)\.BeOfType(?:<[^>]+>)?$")]
+    [GeneratedRegex(@"\.Should\(\)\.BeOfType(?:<[^>]+>+)?$")]
     private static partial Regex BeOfTypeRegex();
 
-    [GeneratedRegex(@"\.Should\(\)\.NotBeOfType(?:<[^>]+>)?$")]
+    [GeneratedRegex(@"\.Should\(\)\.NotBeOfType(?:<[^>]+>+)?$")]
     private static partial Regex NotBeOfTypeRegex();
 
     [GeneratedRegex(@"\.Should\(\)\.BeAssignableTo(?:<[^>]+>+)?$")]
