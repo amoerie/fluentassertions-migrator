@@ -1,11 +1,11 @@
-﻿using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Text.RegularExpressions;
-using Microsoft.CodeAnalysis;
+﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Text.RegularExpressions;
 
 // Sources
 // https://github.com/xunit/xunit/issues/3133
@@ -132,14 +132,14 @@ public sealed class FluentAssertionsDocumentMigrator(
         logger.LogTrace(">> Migrating: {Document}", document.FilePath);
 
         var originalRoot = await document.GetSyntaxRootAsync();
-        
+
         // Remove FluentAssertions using directive
         var rootWithoutUsingFluentAssertions = originalRoot?.RemoveNodes(
             originalRoot.DescendantNodes()
                 .OfType<UsingDirectiveSyntax>()
                 .Where(u => u.Name?.ToString().StartsWith("FluentAssertions") == true),
             SyntaxRemoveOptions.KeepNoTrivia);
-            
+
         var lazySemanticModel = new Lazy<Task<SemanticModel?>>(async () => await document.GetSemanticModelAsync());
         var syntaxRewriter = syntaxRewriterFactory.Create(lazySemanticModel);
         var migratedRoot = syntaxRewriter.Visit(rootWithoutUsingFluentAssertions);
@@ -179,7 +179,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
 
         return base.VisitAwaitExpression(node);
     }
-    
+
     public override SyntaxNode? VisitConditionalAccessExpression(ConditionalAccessExpressionSyntax node)
     {
         if (TryResolveActualValueFromConditionalAccessExpression(node, out var invocation,
@@ -206,12 +206,28 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
     {
         var shouldInvocationExpressionAsString = shouldInvocationExpression.Expression.ToString();
 
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().BePositive"))
+        {
+            logger.LogTrace("Rewriting .Should().BePositive() in {Node}", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression} > 0)", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().BeNegative"))
+        {
+            logger.LogTrace("Rewriting .Should().BeNegative() in {Node}", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression} < 0)", node);
+        }
+
         if (shouldInvocationExpressionAsString.EndsWith(".Should().Be"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().Be() in {Node}", node);
-            // TODO equality between something nullable and something not-nullable 
-             return CreateAssertExpression($"Assert.Equal({expectedValue}, {actualValueExpression})", node);
+            if (expectedValue.ToString() == "1" && actualValueExpression.ToString().EndsWith(".Count"))
+            {
+                var valueNode = actualValueExpression.ChildNodes().FirstOrDefault();
+                return CreateAssertExpression($"Assert.Single({valueNode})", node);
+            }
+            return CreateAssertExpression($"Assert.Equal({expectedValue}, {actualValueExpression})", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBe"))
@@ -267,7 +283,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
                 return CreateAssertExpression($"Assert.Empty({actualValueExpression})", node);
             }
             // xUnit's Assert.Empty does not handle null well, so add a fallback for that
-            return CreateAssertExpression($"Assert.Empty({actualValueExpression} ?? [])", node);    
+            return CreateAssertExpression($"Assert.Empty({actualValueExpression} ?? [])", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeEmpty"))
@@ -303,7 +319,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
         if (ThrowAsyncRegex().IsMatch(shouldInvocationExpressionAsString))
         {
             logger.LogTrace("Rewriting .Should().ThrowAsync() in {Node}", node);
-            
+
             if (GetGenericTypeArgument(shouldInvocationExpression) is { } genericType)
             {
                 return CreateAssertExpression($"await Assert.ThrowsAsync<{genericType}>({actualValueExpression})", node);
@@ -312,51 +328,46 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             {
                 return CreateAssertExpression($"await Assert.ThrowsAsync({typeofArgument}, {actualValueExpression})", node);
             }
-            
+
             return CreateAssertExpression($"await Assert.ThrowsAsync({actualValueExpression})", node);
         }
 
         if (NotThrowAsyncRegex().IsMatch(shouldInvocationExpressionAsString))
         {
             logger.LogTrace("Rewriting .Should().NotThrowAsync() in {Node}", node);
-            
+
             if (GetGenericTypeArgument(shouldInvocationExpression) is { } genericType)
             {
                 return CreateAssertExpression($"Assert.IsNotType<{genericType}>(await Record.ExceptionAsync({actualValueExpression}))", node);
             }
-            
+
             if (GetTypeOfArgument(shouldInvocationExpression) is { } typeofArgument)
             {
                 return CreateAssertExpression($"Assert.IsNotType({typeofArgument}, await Record.ExceptionAsync({actualValueExpression}))", node);
             }
-            
+
             return CreateAssertExpression($"Assert.Null(await Record.ExceptionAsync({actualValueExpression}))", node);
         }
 
         if (BeOfTypeRegex().IsMatch(shouldInvocationExpressionAsString))
         {
             logger.LogTrace("Rewriting .Should().BeOfType() in {Node}", node);
-            if (GetGenericTypeArgument(shouldInvocationExpression) is { } genericType)
-            {
-                return CreateAssertExpression($"Assert.True(({actualValueExpression}) is {genericType})", node);
-            }
-            if (GetTypeOfArgument(shouldInvocationExpression) is { } typeofArgument)
-            {
-                return CreateAssertExpression($"Assert.True(({actualValueExpression}) is {typeofArgument})", node);
-            }
+            var typeofArgument = GetGenericTypeArgument(shouldInvocationExpression) ?? GetTypeOfArgument(shouldInvocationExpression);
+            return CreateAssertExpression($"Assert.IsType<{typeofArgument}>({actualValueExpression})", node);
         }
 
         if (NotBeOfTypeRegex().IsMatch(shouldInvocationExpressionAsString))
         {
             logger.LogTrace("Rewriting .Should().NotBeOfType() in {Node}", node);
-            if (GetGenericTypeArgument(shouldInvocationExpression) is { } genericType)
-            {
-                return CreateAssertExpression($"Assert.False(({actualValueExpression}) is {genericType})", node);
-            }
-            if (GetTypeOfArgument(shouldInvocationExpression) is { } typeofArgument)
-            {
-                return CreateAssertExpression($"Assert.False(({actualValueExpression}) is {typeofArgument})", node);
-            }
+            var typeofArgument = GetGenericTypeArgument(shouldInvocationExpression) ?? GetTypeOfArgument(shouldInvocationExpression);
+            return CreateAssertExpression($"Assert.IsNotType<{typeofArgument}>({actualValueExpression})", node);
+        }
+
+        if (BeAssignableToRegex().IsMatch(shouldInvocationExpressionAsString))
+        {
+            logger.LogTrace("Rewriting .Should().BeAssignableTo() in {Node}", node);
+            var typeofArgument = GetGenericTypeArgument(shouldInvocationExpression) ?? GetTypeOfArgument(shouldInvocationExpression);
+            return CreateAssertExpression($"Assert.IsType<{typeofArgument}>({actualValueExpression})", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeEquivalentTo"))
@@ -410,48 +421,48 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().HaveCount() in {Node}", node);
-            
+
             // Special case, checking if count is 0
             if (expectedValue.ToString() == "0")
             {
                 if (IsNullable(actualValueExpression) == false)
                 {
-                    return CreateAssertExpression($"Assert.Empty({actualValueExpression})", node);    
+                    return CreateAssertExpression($"Assert.Empty({actualValueExpression})", node);
                 }
                 // xUnit's Assert.Empty does not handle null well, so add a fallback for that
-                return CreateAssertExpression($"Assert.Empty({actualValueExpression} ?? [])", node);    
+                return CreateAssertExpression($"Assert.Empty({actualValueExpression} ?? [])", node);
             }
-            
+
             // Special case, checking if count is 1
             if (expectedValue.ToString() == "1")
             {
                 if (IsNullable(actualValueExpression) == false)
                 {
-                    return CreateAssertExpression($"Assert.Single({actualValueExpression})", node);    
+                    return CreateAssertExpression($"Assert.Single({actualValueExpression})", node);
                 }
                 // xUnit's Assert.Single does not handle null well, so add a fallback for that
-                return CreateAssertExpression($"Assert.Single({actualValueExpression} ?? [])", node);    
+                return CreateAssertExpression($"Assert.Single({actualValueExpression} ?? [])", node);
             }
-            
+
             if (IsArray(actualValueExpression) == true)
             {
                 if (IsNullable(actualValueExpression) == false)
                 {
-                    return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression}).Length)", node);    
+                    return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression}).Length)", node);
                 }
-                return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression})?.Length)", node);    
+                return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression})?.Length)", node);
             }
             if (IsCollection(actualValueExpression) == true)
             {
                 if (IsNullable(actualValueExpression) == false)
                 {
-                    return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression}).Count)", node);    
+                    return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression}).Count)", node);
                 }
-                return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression})?.Count)", node);    
+                return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression})?.Count)", node);
             }
             if (IsNullable(actualValueExpression) == false)
             {
-                return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression}).Count())", node);    
+                return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression}).Count())", node);
             }
             return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression})?.Count())", node);
         }
@@ -470,80 +481,87 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             return CreateAssertExpression($"Assert.EndsWith({expectedValue}, {actualValueExpression})", node);
         }
 
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().BeGreaterOrEqualTo"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().BeGreaterOrEqualTo() in {Node}", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression} >= {expectedValue})", node);
+        }
+
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeGreaterThan"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().BeGreaterThan() in {Node}", node);
-            return CreateAssertExpression($"Assert.True(({actualValueExpression}) > ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression} > ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeLessThan"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().BeLessThan() in {Node}", node);
-            return CreateAssertExpression($"Assert.True(({actualValueExpression}) < ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression} < ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeBefore"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().BeBefore() in {Node}", node);
-            return CreateAssertExpression($"Assert.True(({actualValueExpression}) < ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression} < ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeBefore"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().NotBeBefore() in {Node}", node);
-            return CreateAssertExpression($"Assert.False(({actualValueExpression}) < ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.False({actualValueExpression} < ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeOnOrBefore"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().BeOnOrBefore() in {Node}", node);
-            return CreateAssertExpression($"Assert.True(({actualValueExpression}) <= ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression} <= ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeOnOrBefore"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().NotBeOnOrBefore() in {Node}", node);
-            return CreateAssertExpression($"Assert.False(({actualValueExpression}) <= ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.False({actualValueExpression} <= ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeAfter"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().BeAfter() in {Node}", node);
-            return CreateAssertExpression($"Assert.True(({actualValueExpression}) > ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression} > ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeAfter"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().NotBeAfter() in {Node}", node);
-            return CreateAssertExpression($"Assert.False(({actualValueExpression}) > ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.False({actualValueExpression} > ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeOnOrAfter"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().BeOnOrAfter() in {Node}", node);
-            return CreateAssertExpression($"Assert.True(({actualValueExpression}) >= ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression} >= ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeOnOrAfter"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
             logger.LogTrace("Rewriting .Should().NotBeOnOrAfter() in {Node}", node);
-            return CreateAssertExpression($"Assert.False(({actualValueExpression}) >= ({expectedValue}))", node);
+            return CreateAssertExpression($"Assert.False({actualValueExpression} >= ({expectedValue}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeNullOrEmpty"))
         {
             logger.LogTrace("Rewriting .Should().BeNullOrEmpty() in {Node}", node);
-            return CreateAssertExpression($"Assert.False(({actualValueExpression})?.Any() ?? false)", node);
+            return CreateAssertExpression($"Assert.False({actualValueExpression}?.Any() ?? false)", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeNullOrEmpty"))
@@ -551,9 +569,9 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             logger.LogTrace("Rewriting .Should().BeNullOrEmpty() in {Node}", node);
             if (IsNullable(actualValueExpression) == false)
             {
-                return CreateAssertExpression($"Assert.True(({actualValueExpression}).Any())", node);    
+                return CreateAssertExpression($"Assert.True({actualValueExpression}.Any())", node);
             }
-            return CreateAssertExpression($"Assert.True(({actualValueExpression})?.Any())", node);
+            return CreateAssertExpression($"Assert.True({actualValueExpression}?.Any())", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeCloseTo"))
@@ -562,7 +580,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             var precision = shouldInvocationExpression.ArgumentList.Arguments[1].Expression;
             logger.LogTrace("Rewriting .Should().BeCloseTo() in {Node}", node);
             return CreateAssertExpression(
-                $"Assert.True(({actualValueExpression}) >= (({expectedValue}) - ({precision})) && ({actualValueExpression}) <= (({expectedValue}) + ({precision})))", node);
+                $"Assert.True({actualValueExpression} >= ({expectedValue} - {precision}) && {actualValueExpression} <= ({expectedValue} + {precision}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeCloseTo"))
@@ -571,7 +589,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             var precision = shouldInvocationExpression.ArgumentList.Arguments[1].Expression;
             logger.LogTrace("Rewriting .Should().NotBeCloseTo() in {Node}", node);
             return CreateAssertExpression(
-                $"Assert.False(({actualValueExpression}) >= (({expectedValue}) - ({precision})) && ({actualValueExpression}) <= (({expectedValue}) + ({precision})))", node);
+                $"Assert.False({actualValueExpression} >= ({expectedValue} - {precision}) && {actualValueExpression} <= ({expectedValue} + {precision}))", node);
         }
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().BeOneOf"))
@@ -587,7 +605,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             var expectedValues = shouldInvocationExpression.ArgumentList.Arguments
                 .Select(arg => arg.Expression)
                 .ToList();
-            
+
             // Get the target string being tested (e.g. "abc")
             var targetString = actualValueExpression;
 
@@ -606,7 +624,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             // Create the lambda for Assert.All
             var lambdaParameter = SyntaxFactory.Parameter(
                 SyntaxFactory.Identifier("substring"));
-            
+
             var containsExpression = SyntaxFactory.InvocationExpression(
                 SyntaxFactory.MemberAccessExpression(
                     SyntaxKind.SimpleMemberAccessExpression,
@@ -620,7 +638,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
                         })));
 
             var lambda = SyntaxFactory.SimpleLambdaExpression(
-                lambdaParameter, 
+                lambdaParameter,
                 containsExpression);
 
             // Create the full Assert.All expression
@@ -653,7 +671,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             logger.LogTrace("Rewriting .Should().NotContainEquivalentOf() in {Node}", node);
             return CreateAssertExpression($"Assert.DoesNotContain({expectedValue}, {actualValueExpression}, StringComparison.OrdinalIgnoreCase)", node);
         }
-        
+
         return base.VisitInvocationExpression(shouldInvocationExpression);
     }
 
@@ -712,7 +730,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             actualValueExpression = innerActualValueExpression;
             shouldInvocation = invocationExpression;
             return true;
-        } 
+        }
 
         actualValueExpression = null;
         shouldInvocation = null;
@@ -755,7 +773,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
         {
             return null;
         }
-        
+
         return typeArguments.Value[index];
     }
 
@@ -766,7 +784,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
         {
             return null;
         }
-        
+
         return arguments[index].Expression is TypeOfExpressionSyntax typeOfExpression
             ? typeOfExpression.Type
             : null;
@@ -862,7 +880,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             {
                 return true;
             }
-            
+
             var semanticModel = lazySemanticModel.Value.GetAwaiter().GetResult();
             var typeInfo = semanticModel.GetTypeInfo(expression);
             var type = typeInfo.Type;
@@ -886,22 +904,25 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             return null;
         }
     }
-    
+
     [GeneratedRegex(@"\.Should\(\)\.Throw(?:<[^>]+>)?$")]
     private static partial Regex ThrowRegex();
-    
+
     [GeneratedRegex(@"\.Should\(\)\.NotThrow(?:<[^>]+>)?$")]
     private static partial Regex NotThrowRegex();
-    
+
     [GeneratedRegex(@"\.Should\(\)\.ThrowAsync(?:<[^>]+>)?$")]
     private static partial Regex ThrowAsyncRegex();
-    
+
     [GeneratedRegex(@"\.Should\(\)\.NotThrowAsync(?:<[^>]+>)?$")]
     private static partial Regex NotThrowAsyncRegex();
-    
+
     [GeneratedRegex(@"\.Should\(\)\.BeOfType(?:<[^>]+>)?$")]
     private static partial Regex BeOfTypeRegex();
-    
+
     [GeneratedRegex(@"\.Should\(\)\.NotBeOfType(?:<[^>]+>)?$")]
     private static partial Regex NotBeOfTypeRegex();
+
+    [GeneratedRegex(@"\.Should\(\)\.BeAssignableTo(?:<[^>]+>)?")]
+    private static partial Regex BeAssignableToRegex();
 }
