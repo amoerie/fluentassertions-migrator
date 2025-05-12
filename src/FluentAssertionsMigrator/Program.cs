@@ -923,6 +923,6 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
     [GeneratedRegex(@"\.Should\(\)\.NotBeOfType(?:<[^>]+>)?$")]
     private static partial Regex NotBeOfTypeRegex();
 
-    [GeneratedRegex(@"\.Should\(\)\.BeAssignableTo(?:<[^>]+>)?")]
+    [GeneratedRegex(@"\.Should\(\)\.BeAssignableTo(?:<[^>]+>+)?$")]
     private static partial Regex BeAssignableToRegex();
 }
