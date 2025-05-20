@@ -18,6 +18,14 @@ I know I will. This tool tries to automate that process as much as possible.
 dotnet tool install -g FluentAssertionsMigrator
 ```
 
+### Building the Tool yourself
+
+```bash
+cd C:\...\fluentassertions-migrator\src\
+dotnet pack
+dotnet tool install -g FluentAssertionsMigrator
+```
+
 ## Usage
 
 **Make a backup of your solution (or use version control like a sane person) before you run this tool**
