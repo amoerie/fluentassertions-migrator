@@ -193,7 +193,7 @@ public class TestAssertions
     [Fact]
     public async Task ThrowAsync()
     {
-        Func<Task> action = async () => throw new InvalidOperationException();
+        Func<Task> action = () => Task.FromException(new InvalidOperationException());
         await action.Should().ThrowAsync<InvalidOperationException>();
     }
 
