@@ -8,7 +8,7 @@
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>migrate-fluentassertions</ToolCommandName>
         <PackageOutputPath>./nupkg</PackageOutputPath>
-        <Version>1.2.0</Version>
+        <Version>1.3.0</Version>
         <PackageId>FluentAssertionsMigrator</PackageId>
         <Authors>Alexander Moerman</Authors>
         <Description>Tool to migrate FluentAssertions to xUnit assertions</Description>
