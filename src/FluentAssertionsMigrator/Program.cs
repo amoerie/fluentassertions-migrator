@@ -640,6 +640,19 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             return CreateAssertExpression(assertAllExpression, node);
         }
 
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().ContainSingle"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments.Count > 0 ? shouldInvocationExpression.ArgumentList.Arguments[0].Expression : null;
+            logger.LogTrace("Rewriting .Should().ContainSingle() in {Node}", node);
+
+            if (expectedValue != null && IsLambdaExpression(expectedValue) == true)
+            {
+                return CreateAssertExpression($"Assert.Single({actualValueExpression}, {expectedValue})", node);
+            }
+
+            return CreateAssertExpression($"Assert.Single({actualValueExpression})", node);
+        }
+
         if (shouldInvocationExpressionAsString.EndsWith(".Should().ContainEquivalentOf"))
         {
             var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;

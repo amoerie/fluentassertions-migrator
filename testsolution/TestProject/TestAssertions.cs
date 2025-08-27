@@ -103,6 +103,13 @@ public class TestAssertions
     }
     
     [Fact]
+    public void ContainSingle()
+    {
+        var list = new List<int> { 1};
+        list.Should().ContainSingle();
+    }
+    
+    [Fact]
     public void NotContain()
     {
         var list = new List<int> { 1, 2, 3 };

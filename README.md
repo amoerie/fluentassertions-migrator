@@ -66,6 +66,7 @@ This tool analyzes your test files and converts FluentAssertions API calls to th
 - `.Should().HaveCount()` → `Assert.Equal(count)` or `Assert.Single()` or `Assert.Empty()`
 - `.Should().Contain()` → `Assert.Contains()`
 - `.Should().NotContain()` → `Assert.DoesNotContain()`
+- `.Should().ContainSingle()` → `Assert.Single()`
 - `.Should().BeNullOrEmpty()` → `Assert.False(?.Any() ?? false)`
 - `.Should().NotBeNullOrEmpty()` → `Assert.True(?.Any())`
 - `.Should().BeOneOf()` → `Assert.Contains()`
