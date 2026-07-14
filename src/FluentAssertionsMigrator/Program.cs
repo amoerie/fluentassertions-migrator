@@ -193,12 +193,81 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
 
     public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
     {
+        if (TryRewriteExceptionChain(node) is { } rewrittenExceptionChain)
+        {
+            return rewrittenExceptionChain;
+        }
+
         if (TryResolveActualValueFromShouldInvocationExpression(node, out var actualValueExpression))
         {
             return HandleAssertionExpression(node, node, actualValueExpression);
         }
 
         return base.VisitInvocationExpression(node);
+    }
+
+    // Rewrites FluentAssertions exception-detail chains that hang off a throw assertion:
+    //   act.Should().Throw<T>().WithMessage("*foo*")   -> Assert.Contains("foo", Assert.Throws<T>(act).Message)
+    //   act.Should().Throw<T>().WithParameterName("p")  -> Assert.Equal("p", Assert.Throws<T>(act).ParamName)
+    // The inner throw assertion is migrated first (which also unwraps Invoking/Awaiting), so we can build on
+    // top of the resulting Assert.Throws<T>(...) expression. Returns null when this is not such a chain.
+    private SyntaxNode? TryRewriteExceptionChain(InvocationExpressionSyntax node)
+    {
+        if (node.Expression is not MemberAccessExpressionSyntax { Name.Identifier.ValueText: var chainMethod } memberAccess)
+        {
+            return null;
+        }
+
+        if (chainMethod is not ("WithMessage" or "WithParameterName"))
+        {
+            return null;
+        }
+
+        // The receiver must be a throw assertion: <act>.Should().Throw<T>() (or ThrowExactly).
+        if (memberAccess.Expression is not InvocationExpressionSyntax innerThrowInvocation
+            || !ThrowChainRegex().IsMatch(innerThrowInvocation.Expression.ToString()))
+        {
+            return null;
+        }
+
+        // Migrate the inner throw assertion first so Invoking/Awaiting is unwrapped and we get Assert.Throws<T>(...).
+        if (Visit(innerThrowInvocation) is not ExpressionSyntax migratedThrow)
+        {
+            return null;
+        }
+
+        var argument = node.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+        if (argument is null)
+        {
+            return null;
+        }
+
+        if (chainMethod == "WithParameterName")
+        {
+            logger.LogTrace("Rewriting .Should().Throw().WithParameterName() in {Node}", node);
+            return CreateAssertExpression($"Assert.Equal({argument}, ({migratedThrow}).ParamName)", node);
+        }
+
+        // WithMessage: FluentAssertions matches with '*' wildcards. Strip leading/trailing '*' and use
+        // Assert.Contains, which is the closest faithful behaviour for the common "*substring*" case.
+        logger.LogTrace("Rewriting .Should().Throw().WithMessage() in {Node}", node);
+        var expected = StripMessageWildcards(argument);
+        return CreateAssertExpression($"Assert.Contains({expected}, ({migratedThrow}).Message)", node);
+    }
+
+    // Removes leading/trailing '*' wildcards from a string-literal WithMessage argument so it maps to
+    // Assert.Contains. Non-literal arguments (interpolated/variables) are passed through unchanged.
+    private static ExpressionSyntax StripMessageWildcards(ExpressionSyntax argument)
+    {
+        if (argument is not LiteralExpressionSyntax { Token.ValueText: var text } || !text.Contains('*'))
+        {
+            return argument;
+        }
+
+        var trimmed = text.Trim('*');
+        return SyntaxFactory.LiteralExpression(
+            SyntaxKind.StringLiteralExpression,
+            SyntaxFactory.Literal(trimmed));
     }
 
     private SyntaxNode? HandleAssertionExpression(ExpressionSyntax node,
@@ -1089,6 +1158,9 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
 
     [GeneratedRegex(@"\.Should\(\)\.BeAssignableTo(?:<.+>)?$")]
     private static partial Regex BeAssignableToRegex();
+
+    [GeneratedRegex(@"\.Should\(\)\.Throw(?:<.+>)?$")]
+    private static partial Regex ThrowChainRegex();
 }
 
 // Replaces every stand-alone reference to a given identifier (a lambda parameter) with a replacement

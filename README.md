@@ -106,6 +106,9 @@ This tool analyzes your test files and converts FluentAssertions API calls to th
 - `.Should().NotThrowAsync()` → `Assert.Null(Record.ExceptionAsync())`
 - `.Should().ThrowAsync<T>()` → `Assert.ThrowsAsync<T>()`
 - `.Should().NotThrowAsync<T>()` → `Assert.IsNotType<T>(Record.ExceptionAsync())`
+- `subject.Invoking(x => x.Foo())` / `subject.Awaiting(x => x.FooAsync())` → the "act" is unwrapped into `() => subject.Foo()`
+- `.Should().Throw<T>().WithMessage("*msg*")` → `Assert.Contains("msg", Assert.Throws<T>(...).Message)`
+- `.Should().Throw<T>().WithParameterName("p")` → `Assert.Equal("p", Assert.Throws<T>(...).ParamName)`
 
 ### Numeric comparisons
 - `.Should().BeGreaterThan()` → `Assert.True(x > y)`

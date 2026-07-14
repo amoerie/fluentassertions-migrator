@@ -464,6 +464,21 @@ public class TestAssertions
         var subject = new ThrowingSubject();
         await subject.Awaiting(s => s.ThrowInvalidOperationAsync()).Should().ThrowAsync<InvalidOperationException>();
     }
+
+    /* Exception detail chains */
+    [Fact]
+    public void ThrowWithMessage()
+    {
+        Action action = () => throw new InvalidOperationException("something went wrong");
+        action.Should().Throw<InvalidOperationException>().WithMessage("*went wrong*");
+    }
+
+    [Fact]
+    public void ThrowWithParameterName()
+    {
+        Action action = () => throw new ArgumentNullException("myParam");
+        action.Should().Throw<ArgumentNullException>().WithParameterName("myParam");
+    }
 }
 
 public sealed class ThrowingSubject
