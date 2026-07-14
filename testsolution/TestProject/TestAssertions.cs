@@ -511,10 +511,10 @@ public class TestAssertions
     }
 
     [Fact]
-    public async Task AwaitingAsyncThrows()
+    public async Task InvokingAsyncThrows()
     {
         var subject = new ThrowingSubject();
-        await subject.Awaiting(async s => await s.ThrowInvalidOperationAsync()).Should().ThrowAsync<InvalidOperationException>();
+        await subject.Invoking(async s => await s.ThrowInvalidOperationAsync()).Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Fact]
