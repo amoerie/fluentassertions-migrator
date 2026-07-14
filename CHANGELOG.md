@@ -1,6 +1,13 @@
 FluentAssertions Migrator Changelog
 
 
+<a name="2.1.1"></a>
+## [2.1.1](https://github.com/amoerie/fluentassertions-migrator/compare/v2.1.0...v2.1.1) (2026-07-14)
+
+### Bug Fixes
+
+* match fluent chains that span multiple lines ([b630679](https://github.com/amoerie/fluentassertions-migrator/commit/b6306790970b2626407361436fe97d24ea5dca33))
+
 <a name="2.1.0"></a>
 ## [2.1.0](https://github.com/amoerie/fluentassertions-migrator/compare/v2.0.0...v2.1.0) (2026-07-14)
 
