@@ -1,6 +1,14 @@
 FluentAssertions Migrator Changelog
 
 
+<a name="2.1.0"></a>
+## [2.1.0](https://github.com/amoerie/fluentassertions-migrator/compare/v2.0.0...v2.1.0) (2026-07-14)
+
+### Features
+
+* migrate exception-detail chains WithMessage and WithParameterName ([92c8915](https://github.com/amoerie/fluentassertions-migrator/commit/92c8915846fe7153956314f7fb991de9b35711b7))
+* unwrap Invoking/Awaiting into plain lambdas for throw assertions ([c0adbd2](https://github.com/amoerie/fluentassertions-migrator/commit/c0adbd29d5abbc4036a6dc48fbbcd58bfaa14600))
+
 <a name="2.0.0"></a>
 ## [2.0.0](https://github.com/amoerie/fluentassertions-migrator/releases/tag/v2.0.0) (2026-07-14)
 
