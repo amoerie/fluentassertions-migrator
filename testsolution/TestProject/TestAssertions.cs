@@ -509,6 +509,20 @@ public class TestAssertions
             .Throw<InvalidOperationException>()
             .WithMessage("*boom*");
     }
+
+    [Fact]
+    public async Task AwaitingAsyncThrows()
+    {
+        var subject = new ThrowingSubject();
+        await subject.Awaiting(async s => await s.ThrowInvalidOperationAsync()).Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void ContainSingleWhich()
+    {
+        var list = new List<int> { 42 };
+        Assert.Equal(42, list.Should().ContainSingle().Which);
+    }
 }
 
 public sealed class ThrowingSubject

@@ -206,6 +206,25 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
         return base.VisitInvocationExpression(node);
     }
 
+    public override SyntaxNode? VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
+    {
+        // FluentAssertions' collection.Should().ContainSingle().Which returns the single element.
+        // xUnit's Assert.Single(collection) already returns that element, so migrate the ContainSingle
+        // call and drop the trailing .Which.
+        if (node.Name.Identifier.ValueText == "Which"
+            && node.Expression is InvocationExpressionSyntax containSingleInvocation
+            && RemoveWhitespace(containSingleInvocation.Expression.ToString()).EndsWith(".Should().ContainSingle"))
+        {
+            if (Visit(containSingleInvocation) is ExpressionSyntax migratedSingle)
+            {
+                logger.LogTrace("Rewriting .Should().ContainSingle().Which in {Node}", node);
+                return migratedSingle.WithTriviaFrom(node);
+            }
+        }
+
+        return base.VisitMemberAccessExpression(node);
+    }
+
     // Rewrites FluentAssertions exception-detail chains that hang off a throw assertion:
     //   act.Should().Throw<T>().WithMessage("*foo*")   -> Assert.Contains("foo", Assert.Throws<T>(act).Message)
     //   act.Should().Throw<T>().WithParameterName("p")  -> Assert.Equal("p", Assert.Throws<T>(act).ParamName)
@@ -1020,9 +1039,17 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
         var parameterName = lambda.Parameter.Identifier.ValueText;
         var rewrittenBody = (CSharpSyntaxNode)new IdentifierSubstitutionRewriter(parameterName, subject).Visit(lambda.Body)!;
 
-        // Produce a parameterless lambda: () => <rewrittenBody>
+        // Produce a parameterless lambda: () => <rewrittenBody>, preserving the async modifier so that
+        // Awaiting(async x => await x.Foo()) becomes async () => await subject.Foo() (otherwise the await
+        // inside the body would not compile).
         var parameterlessLambda = SyntaxFactory.ParenthesizedLambdaExpression()
             .WithBody(rewrittenBody);
+
+        var asyncModifier = lambda.Modifiers.FirstOrDefault(m => m.IsKind(SyntaxKind.AsyncKeyword));
+        if (asyncModifier != default)
+        {
+            parameterlessLambda = parameterlessLambda.WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.AsyncKeyword)));
+        }
 
         return parameterlessLambda;
     }
