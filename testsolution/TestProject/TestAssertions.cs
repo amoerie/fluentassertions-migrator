@@ -479,6 +479,36 @@ public class TestAssertions
         Action action = () => throw new ArgumentNullException("myParam");
         action.Should().Throw<ArgumentNullException>().WithParameterName("myParam");
     }
+
+    /* Multi-line fluent chains (the .Should() and the assertion sit on separate lines) */
+    [Fact]
+    public void MultiLineBe()
+    {
+        var actual = 42;
+        actual
+            .Should()
+            .Be(42);
+    }
+
+    [Fact]
+    public void MultiLineNotThrow()
+    {
+        var subject = new ThrowingSubject();
+        subject
+            .Invoking(s => s.DoNothing())
+            .Should()
+            .NotThrow();
+    }
+
+    [Fact]
+    public void MultiLineThrowWithMessage()
+    {
+        Action action = () => throw new InvalidOperationException("boom happened");
+        action
+            .Should()
+            .Throw<InvalidOperationException>()
+            .WithMessage("*boom*");
+    }
 }
 
 public sealed class ThrowingSubject

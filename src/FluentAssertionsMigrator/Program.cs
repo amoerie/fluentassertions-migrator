@@ -225,7 +225,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
 
         // The receiver must be a throw assertion: <act>.Should().Throw<T>() (or ThrowExactly).
         if (memberAccess.Expression is not InvocationExpressionSyntax innerThrowInvocation
-            || !ThrowChainRegex().IsMatch(innerThrowInvocation.Expression.ToString()))
+            || !ThrowChainRegex().IsMatch(RemoveWhitespace(innerThrowInvocation.Expression.ToString())))
         {
             return null;
         }
@@ -278,7 +278,11 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
         // () => subject.Foo() by substituting the lambda parameter with the subject expression.
         actualValueExpression = UnwrapInvoking(actualValueExpression);
 
-        var shouldInvocationExpressionAsString = shouldInvocationExpression.Expression.ToString();
+        // The member-access chain (e.g. "x.Should().Be") is matched by suffix below. When the fluent chain
+        // is split across multiple lines, ToString() preserves the newlines and indentation, which breaks the
+        // suffix match. Strip whitespace so multi-line chains match the same as single-line ones. This is safe
+        // because Expression here is only the receiver + method chain (no arguments / string literals).
+        var shouldInvocationExpressionAsString = RemoveWhitespace(shouldInvocationExpression.Expression.ToString());
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().Be"))
         {
@@ -953,7 +957,7 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             {
                 Expression: InvocationExpressionSyntax innerInvocation
             }
-            && innerInvocation.Expression.ToString().EndsWith(".Should"))
+            && RemoveWhitespace(innerInvocation.Expression.ToString()).EndsWith(".Should"))
         {
             if (innerInvocation.Expression is MemberAccessExpressionSyntax shouldMemberAccess)
             {
@@ -1021,6 +1025,17 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             .WithBody(rewrittenBody);
 
         return parameterlessLambda;
+    }
+
+    // Removes all whitespace (including newlines and indentation) from a member-access chain string so that
+    // multi-line fluent chains like
+    //     value
+    //         .Should()
+    //         .Be(...)
+    // match the same suffixes as their single-line equivalents.
+    private static string RemoveWhitespace(string value)
+    {
+        return WhitespaceRegex().Replace(value, string.Empty);
     }
 
     private static ExpressionSyntax CreateAssertExpression(string assertCode, ExpressionSyntax originalNode)
@@ -1161,6 +1176,9 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
 
     [GeneratedRegex(@"\.Should\(\)\.Throw(?:<.+>)?$")]
     private static partial Regex ThrowChainRegex();
+
+    [GeneratedRegex(@"\s+")]
+    private static partial Regex WhitespaceRegex();
 }
 
 // Replaces every stand-alone reference to a given identifier (a lambda parameter) with a replacement
