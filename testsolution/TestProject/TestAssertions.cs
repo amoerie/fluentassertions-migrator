@@ -288,4 +288,78 @@ public class TestAssertions
         var date2 = date1;
         date1.Should().BeOnOrAfter(date2);
     }
+
+    /* Numeric comparison (inclusive) */
+    [Fact]
+    public void BeGreaterThanOrEqualTo()
+    {
+        var number = 10;
+        number.Should().BeGreaterThanOrEqualTo(10);
+    }
+
+    [Fact]
+    public void BeLessThanOrEqualTo()
+    {
+        var number = 10;
+        number.Should().BeLessThanOrEqualTo(10);
+    }
+
+    [Fact]
+    public void BePositive()
+    {
+        var number = 5;
+        number.Should().BePositive();
+    }
+
+    [Fact]
+    public void BeNegative()
+    {
+        var number = -5;
+        number.Should().BeNegative();
+    }
+
+    /* Dictionaries */
+    [Fact]
+    public void ContainKey()
+    {
+        var dictionary = new Dictionary<string, int> { ["a"] = 1 };
+        dictionary.Should().ContainKey("a");
+    }
+
+    [Fact]
+    public void NotContainKey()
+    {
+        var dictionary = new Dictionary<string, int> { ["a"] = 1 };
+        dictionary.Should().NotContainKey("b");
+    }
+
+    /* Regex */
+    [Fact]
+    public void MatchRegex()
+    {
+        var text = "abc123";
+        text.Should().MatchRegex("^[a-z]+[0-9]+$");
+    }
+
+    [Fact]
+    public void NotMatchRegex()
+    {
+        var text = "abc123";
+        text.Should().NotMatchRegex("^[0-9]+$");
+    }
+
+    /* Collections */
+    [Fact]
+    public void OnlyContain()
+    {
+        var list = new List<int> { 2, 4, 6 };
+        list.Should().OnlyContain(x => x % 2 == 0);
+    }
+
+    [Fact]
+    public void Equal()
+    {
+        var list = new List<int> { 1, 2, 3 };
+        list.Should().Equal(new List<int> { 1, 2, 3 });
+    }
 }

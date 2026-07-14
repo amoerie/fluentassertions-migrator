@@ -72,11 +72,19 @@ This tool analyzes your test files and converts FluentAssertions API calls to th
 - `.Should().BeOneOf()` → `Assert.Contains()`
 - `.Should().ContainEquivalentOf()` → `Assert.Contains()`
 - `.Should().NotContainEquivalentOf()` → `Assert.DoesNotContain()`
+- `.Should().Equal()` → `Assert.Equal()`
+- `.Should().OnlyContain()` → `Assert.All(collection, x => Assert.True(predicate))`
+
+### Dictionaries
+- `.Should().ContainKey()` → `Assert.Contains(key, dictionary)`
+- `.Should().NotContainKey()` → `Assert.DoesNotContain(key, dictionary)`
 
 ### Strings
 - `.Should().StartWith()` → `Assert.StartsWith()`
 - `.Should().EndWith()` → `Assert.EndsWith()`
 - `.Should().ContainAll()` → `Assert.All(strings, s => Assert.Contains(s, x))`
+- `.Should().MatchRegex()` → `Assert.Matches()`
+- `.Should().NotMatchRegex()` → `Assert.DoesNotMatch()`
 
 ### Type checks
 - `.Should().BeOfType()` → `Assert.True(x is Type)`
@@ -95,6 +103,10 @@ This tool analyzes your test files and converts FluentAssertions API calls to th
 ### Numeric comparisons
 - `.Should().BeGreaterThan()` → `Assert.True(x > y)`
 - `.Should().BeLessThan()` → `Assert.True(x < y)`
+- `.Should().BeGreaterThanOrEqualTo()` → `Assert.True(x >= y)`
+- `.Should().BeLessThanOrEqualTo()` → `Assert.True(x <= y)`
+- `.Should().BePositive()` → `Assert.True(x > 0)`
+- `.Should().BeNegative()` → `Assert.True(x < 0)`
 - `.Should().BeCloseTo()` → `Assert.True(x > (expected - precision) && x < (expected + precision))`
 - `.Should().NotBeCloseTo()` → `Assert.False(x > (expected - precision) && x < (expected + precision))`
 

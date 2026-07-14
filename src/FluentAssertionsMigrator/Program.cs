@@ -666,7 +666,90 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             logger.LogTrace("Rewriting .Should().NotContainEquivalentOf() in {Node}", node);
             return CreateAssertExpression($"Assert.DoesNotContain({expectedValue}, {actualValueExpression}, StringComparison.OrdinalIgnoreCase)", node);
         }
-        
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().BeGreaterThanOrEqualTo")
+            || shouldInvocationExpressionAsString.EndsWith(".Should().BeGreaterOrEqualTo"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().BeGreaterThanOrEqualTo() in {Node}", node);
+            return CreateAssertExpression($"Assert.True(({actualValueExpression}) >= ({expectedValue}))", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().BeLessThanOrEqualTo")
+            || shouldInvocationExpressionAsString.EndsWith(".Should().BeLessOrEqualTo"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().BeLessThanOrEqualTo() in {Node}", node);
+            return CreateAssertExpression($"Assert.True(({actualValueExpression}) <= ({expectedValue}))", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().BePositive"))
+        {
+            logger.LogTrace("Rewriting .Should().BePositive() in {Node}", node);
+            return CreateAssertExpression($"Assert.True(({actualValueExpression}) > 0)", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().BeNegative"))
+        {
+            logger.LogTrace("Rewriting .Should().BeNegative() in {Node}", node);
+            return CreateAssertExpression($"Assert.True(({actualValueExpression}) < 0)", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().ContainKey"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().ContainKey() in {Node}", node);
+            return CreateAssertExpression($"Assert.Contains({expectedValue}, {actualValueExpression})", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotContainKey"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().NotContainKey() in {Node}", node);
+            return CreateAssertExpression($"Assert.DoesNotContain({expectedValue}, {actualValueExpression})", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().MatchRegex"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().MatchRegex() in {Node}", node);
+            return CreateAssertExpression($"Assert.Matches({expectedValue}, {actualValueExpression})", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotMatchRegex"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().NotMatchRegex() in {Node}", node);
+            return CreateAssertExpression($"Assert.DoesNotMatch({expectedValue}, {actualValueExpression})", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().OnlyContain"))
+        {
+            var predicate = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().OnlyContain() in {Node}", node);
+            // FluentAssertions' OnlyContain(x => predicate) asserts every element matches the predicate.
+            // xUnit equivalent: Assert.All(collection, x => Assert.True(predicate))
+            // We reuse the original lambda's parameter and wrap its body in Assert.True(...).
+            if (predicate is SimpleLambdaExpressionSyntax { ExpressionBody: { } lambdaBody } simpleLambda)
+            {
+                var wrappedBody = SyntaxFactory.ParseExpression($"Assert.True({lambdaBody})");
+                var assertLambda = simpleLambda.WithBody(wrappedBody);
+                return CreateAssertExpression($"Assert.All({actualValueExpression}, {assertLambda})", node);
+            }
+
+            // Fallback for anything that is not a simple expression-bodied lambda:
+            // invoke the predicate through a locally-typed delegate so it compiles.
+            return CreateAssertExpression(
+                $"Assert.All({actualValueExpression}, __item => Assert.True((({predicate}) as System.Func<dynamic, bool>)!(__item)))", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().Equal"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().Equal() in {Node}", node);
+            return CreateAssertExpression($"Assert.Equal({expectedValue}, {actualValueExpression})", node);
+        }
+
         return base.VisitInvocationExpression(shouldInvocationExpression);
     }
 
