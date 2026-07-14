@@ -9,9 +9,6 @@
         <ToolCommandName>migrate-fluentassertions</ToolCommandName>
         <PackageOutputPath>./nupkg</PackageOutputPath>
         <Version>2.1.0</Version>
-        <PackageId>FluentAssertionsMigrator</PackageId>
-        <Authors>Alexander Moerman</Authors>
-        <Description>Tool to migrate FluentAssertions to xUnit assertions</Description>
         <Configurations>Debug;Release</Configurations>
         <OutputPath>bin\$(Configuration)\</OutputPath>
         <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -19,8 +16,35 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
+    <!-- NuGet package metadata -->
+    <PropertyGroup>
+        <PackageId>FluentAssertionsMigrator</PackageId>
+        <Authors>Alexander Moerman</Authors>
+        <Company>Alexander Moerman</Company>
+        <Description>A .NET tool that automatically rewrites FluentAssertions assertions into their xUnit equivalents. Point it at a solution and it migrates .Should() assertions to Assert.* calls using Roslyn.</Description>
+        <PackageTags>fluentassertions;xunit;migration;roslyn;testing;assertions;dotnet-tool;codemod</PackageTags>
+        <PackageProjectUrl>https://github.com/amoerie/fluentassertions-migrator</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/amoerie/fluentassertions-migrator</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+        <Copyright>Copyright © Alexander Moerman</Copyright>
+        <!-- SourceLink: embed commit + untracked sources and ship symbols for debuggability -->
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
 
     <ItemGroup>
+        <!-- Ship the README inside the package so nuget.org renders it -->
+        <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.300" PrivateAssets="all" />
       <PackageReference Include="Microsoft.Build.Locator" Version="1.11.2" />
       <PackageReference Include="Microsoft.Build" Version="17.11.48" ExcludeAssets="runtime" PrivateAssets="all" NoWarn="NU1903" />
       <PackageReference Include="Microsoft.Build.Framework" Version="17.11.48" ExcludeAssets="runtime" PrivateAssets="all" NoWarn="NU1903" />
