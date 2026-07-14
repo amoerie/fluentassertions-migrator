@@ -193,6 +193,11 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
 
     public override SyntaxNode? VisitInvocationExpression(InvocationExpressionSyntax node)
     {
+        if (TryRewriteExceptionChain(node) is { } rewrittenExceptionChain)
+        {
+            return rewrittenExceptionChain;
+        }
+
         if (TryResolveActualValueFromShouldInvocationExpression(node, out var actualValueExpression))
         {
             return HandleAssertionExpression(node, node, actualValueExpression);
@@ -201,9 +206,78 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
         return base.VisitInvocationExpression(node);
     }
 
+    // Rewrites FluentAssertions exception-detail chains that hang off a throw assertion:
+    //   act.Should().Throw<T>().WithMessage("*foo*")   -> Assert.Contains("foo", Assert.Throws<T>(act).Message)
+    //   act.Should().Throw<T>().WithParameterName("p")  -> Assert.Equal("p", Assert.Throws<T>(act).ParamName)
+    // The inner throw assertion is migrated first (which also unwraps Invoking/Awaiting), so we can build on
+    // top of the resulting Assert.Throws<T>(...) expression. Returns null when this is not such a chain.
+    private SyntaxNode? TryRewriteExceptionChain(InvocationExpressionSyntax node)
+    {
+        if (node.Expression is not MemberAccessExpressionSyntax { Name.Identifier.ValueText: var chainMethod } memberAccess)
+        {
+            return null;
+        }
+
+        if (chainMethod is not ("WithMessage" or "WithParameterName"))
+        {
+            return null;
+        }
+
+        // The receiver must be a throw assertion: <act>.Should().Throw<T>() (or ThrowExactly).
+        if (memberAccess.Expression is not InvocationExpressionSyntax innerThrowInvocation
+            || !ThrowChainRegex().IsMatch(innerThrowInvocation.Expression.ToString()))
+        {
+            return null;
+        }
+
+        // Migrate the inner throw assertion first so Invoking/Awaiting is unwrapped and we get Assert.Throws<T>(...).
+        if (Visit(innerThrowInvocation) is not ExpressionSyntax migratedThrow)
+        {
+            return null;
+        }
+
+        var argument = node.ArgumentList.Arguments.FirstOrDefault()?.Expression;
+        if (argument is null)
+        {
+            return null;
+        }
+
+        if (chainMethod == "WithParameterName")
+        {
+            logger.LogTrace("Rewriting .Should().Throw().WithParameterName() in {Node}", node);
+            return CreateAssertExpression($"Assert.Equal({argument}, ({migratedThrow}).ParamName)", node);
+        }
+
+        // WithMessage: FluentAssertions matches with '*' wildcards. Strip leading/trailing '*' and use
+        // Assert.Contains, which is the closest faithful behaviour for the common "*substring*" case.
+        logger.LogTrace("Rewriting .Should().Throw().WithMessage() in {Node}", node);
+        var expected = StripMessageWildcards(argument);
+        return CreateAssertExpression($"Assert.Contains({expected}, ({migratedThrow}).Message)", node);
+    }
+
+    // Removes leading/trailing '*' wildcards from a string-literal WithMessage argument so it maps to
+    // Assert.Contains. Non-literal arguments (interpolated/variables) are passed through unchanged.
+    private static ExpressionSyntax StripMessageWildcards(ExpressionSyntax argument)
+    {
+        if (argument is not LiteralExpressionSyntax { Token.ValueText: var text } || !text.Contains('*'))
+        {
+            return argument;
+        }
+
+        var trimmed = text.Trim('*');
+        return SyntaxFactory.LiteralExpression(
+            SyntaxKind.StringLiteralExpression,
+            SyntaxFactory.Literal(trimmed));
+    }
+
     private SyntaxNode? HandleAssertionExpression(ExpressionSyntax node,
         InvocationExpressionSyntax shouldInvocationExpression, ExpressionSyntax actualValueExpression)
     {
+        // FluentAssertions lets you wrap the "act" in subject.Invoking(x => x.Foo()) / subject.Awaiting(x => x.FooAsync())
+        // to produce a delegate for the throw assertions. xUnit takes a plain delegate, so unwrap it into
+        // () => subject.Foo() by substituting the lambda parameter with the subject expression.
+        actualValueExpression = UnwrapInvoking(actualValueExpression);
+
         var shouldInvocationExpressionAsString = shouldInvocationExpression.Expression.ToString();
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().Be"))
@@ -922,6 +996,33 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             : null;
     }
 
+    // Unwraps FluentAssertions' subject.Invoking(x => x.Foo()) / subject.Awaiting(x => x.FooAsync()) into a
+    // plain lambda () => subject.Foo(), by substituting the lambda parameter with the subject expression.
+    // Returns the original expression unchanged when it is not an Invoking/Awaiting call.
+    private static ExpressionSyntax UnwrapInvoking(ExpressionSyntax actualValueExpression)
+    {
+        if (actualValueExpression is not InvocationExpressionSyntax
+            {
+                Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Invoking" or "Awaiting" } memberAccess,
+                ArgumentList.Arguments: [{ Expression: SimpleLambdaExpressionSyntax lambda }]
+            })
+        {
+            return actualValueExpression;
+        }
+
+        var subject = memberAccess.Expression;
+
+        // Replace every reference to the lambda parameter in the body with the subject expression.
+        var parameterName = lambda.Parameter.Identifier.ValueText;
+        var rewrittenBody = (CSharpSyntaxNode)new IdentifierSubstitutionRewriter(parameterName, subject).Visit(lambda.Body)!;
+
+        // Produce a parameterless lambda: () => <rewrittenBody>
+        var parameterlessLambda = SyntaxFactory.ParenthesizedLambdaExpression()
+            .WithBody(rewrittenBody);
+
+        return parameterlessLambda;
+    }
+
     private static ExpressionSyntax CreateAssertExpression(string assertCode, ExpressionSyntax originalNode)
     {
         return SyntaxFactory.ParseExpression(assertCode)
@@ -1057,4 +1158,29 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
 
     [GeneratedRegex(@"\.Should\(\)\.BeAssignableTo(?:<.+>)?$")]
     private static partial Regex BeAssignableToRegex();
+
+    [GeneratedRegex(@"\.Should\(\)\.Throw(?:<.+>)?$")]
+    private static partial Regex ThrowChainRegex();
+}
+
+// Replaces every stand-alone reference to a given identifier (a lambda parameter) with a replacement
+// expression. Used to inline FluentAssertions' Invoking/Awaiting lambda parameter with its subject.
+internal sealed class IdentifierSubstitutionRewriter(string identifier, ExpressionSyntax replacement) : CSharpSyntaxRewriter
+{
+    public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
+    {
+        if (node.Identifier.ValueText != identifier)
+        {
+            return base.VisitIdentifierName(node);
+        }
+
+        // Only replace when the identifier is used as a value, not as the right-hand side of a member
+        // access (e.g. the "Foo" in "x.Foo" must not be replaced, but the "x" must).
+        if (node.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == node)
+        {
+            return base.VisitIdentifierName(node);
+        }
+
+        return replacement.WithTriviaFrom(node);
+    }
 }
