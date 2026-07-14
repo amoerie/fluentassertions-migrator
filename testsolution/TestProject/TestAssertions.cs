@@ -442,6 +442,37 @@ public class TestAssertions
         Action action = () => throw new CustomException<List<int>>();
         action.Should().Throw<CustomException<List<int>>>();
     }
+
+    /* Invoking / Awaiting (produce the "act" delegate for throw assertions) */
+    [Fact]
+    public void InvokingThrows()
+    {
+        var subject = new ThrowingSubject();
+        subject.Invoking(s => s.ThrowInvalidOperation()).Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void InvokingDoesNotThrow()
+    {
+        var subject = new ThrowingSubject();
+        subject.Invoking(s => s.DoNothing()).Should().NotThrow();
+    }
+
+    [Fact]
+    public async Task AwaitingThrows()
+    {
+        var subject = new ThrowingSubject();
+        await subject.Awaiting(s => s.ThrowInvalidOperationAsync()).Should().ThrowAsync<InvalidOperationException>();
+    }
+}
+
+public sealed class ThrowingSubject
+{
+    public void ThrowInvalidOperation() => throw new InvalidOperationException();
+
+    public void DoNothing() { }
+
+    public Task ThrowInvalidOperationAsync() => throw new InvalidOperationException();
 }
 
 public sealed class CustomException<T> : Exception;

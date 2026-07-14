@@ -204,6 +204,11 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
     private SyntaxNode? HandleAssertionExpression(ExpressionSyntax node,
         InvocationExpressionSyntax shouldInvocationExpression, ExpressionSyntax actualValueExpression)
     {
+        // FluentAssertions lets you wrap the "act" in subject.Invoking(x => x.Foo()) / subject.Awaiting(x => x.FooAsync())
+        // to produce a delegate for the throw assertions. xUnit takes a plain delegate, so unwrap it into
+        // () => subject.Foo() by substituting the lambda parameter with the subject expression.
+        actualValueExpression = UnwrapInvoking(actualValueExpression);
+
         var shouldInvocationExpressionAsString = shouldInvocationExpression.Expression.ToString();
 
         if (shouldInvocationExpressionAsString.EndsWith(".Should().Be"))
@@ -922,6 +927,33 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             : null;
     }
 
+    // Unwraps FluentAssertions' subject.Invoking(x => x.Foo()) / subject.Awaiting(x => x.FooAsync()) into a
+    // plain lambda () => subject.Foo(), by substituting the lambda parameter with the subject expression.
+    // Returns the original expression unchanged when it is not an Invoking/Awaiting call.
+    private static ExpressionSyntax UnwrapInvoking(ExpressionSyntax actualValueExpression)
+    {
+        if (actualValueExpression is not InvocationExpressionSyntax
+            {
+                Expression: MemberAccessExpressionSyntax { Name.Identifier.ValueText: "Invoking" or "Awaiting" } memberAccess,
+                ArgumentList.Arguments: [{ Expression: SimpleLambdaExpressionSyntax lambda }]
+            })
+        {
+            return actualValueExpression;
+        }
+
+        var subject = memberAccess.Expression;
+
+        // Replace every reference to the lambda parameter in the body with the subject expression.
+        var parameterName = lambda.Parameter.Identifier.ValueText;
+        var rewrittenBody = (CSharpSyntaxNode)new IdentifierSubstitutionRewriter(parameterName, subject).Visit(lambda.Body)!;
+
+        // Produce a parameterless lambda: () => <rewrittenBody>
+        var parameterlessLambda = SyntaxFactory.ParenthesizedLambdaExpression()
+            .WithBody(rewrittenBody);
+
+        return parameterlessLambda;
+    }
+
     private static ExpressionSyntax CreateAssertExpression(string assertCode, ExpressionSyntax originalNode)
     {
         return SyntaxFactory.ParseExpression(assertCode)
@@ -1057,4 +1089,26 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
 
     [GeneratedRegex(@"\.Should\(\)\.BeAssignableTo(?:<.+>)?$")]
     private static partial Regex BeAssignableToRegex();
+}
+
+// Replaces every stand-alone reference to a given identifier (a lambda parameter) with a replacement
+// expression. Used to inline FluentAssertions' Invoking/Awaiting lambda parameter with its subject.
+internal sealed class IdentifierSubstitutionRewriter(string identifier, ExpressionSyntax replacement) : CSharpSyntaxRewriter
+{
+    public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
+    {
+        if (node.Identifier.ValueText != identifier)
+        {
+            return base.VisitIdentifierName(node);
+        }
+
+        // Only replace when the identifier is used as a value, not as the right-hand side of a member
+        // access (e.g. the "Foo" in "x.Foo" must not be replaced, but the "x" must).
+        if (node.Parent is MemberAccessExpressionSyntax memberAccess && memberAccess.Name == node)
+        {
+            return base.VisitIdentifierName(node);
+        }
+
+        return replacement.WithTriviaFrom(node);
+    }
 }
