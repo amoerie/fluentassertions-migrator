@@ -32,7 +32,7 @@
         <Copyright>Copyright © Alexander Moerman</Copyright>
         <!-- SourceLink: embed commit + untracked sources and ship symbols for debuggability -->
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
-        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <EmbedUntrackedSources Condition="'$(ContinuousIntegrationBuild)' == 'true'">true</EmbedUntrackedSources>
         <IncludeSymbols>true</IncludeSymbols>
         <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
