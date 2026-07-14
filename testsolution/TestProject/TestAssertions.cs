@@ -366,8 +366,8 @@ public class TestAssertions
     [Fact]
     public void NotEqual()
     {
-        var value = 42;
-        value.Should().NotEqual(43);
+        var list = new List<int> { 1, 2, 3 };
+        list.Should().NotEqual(new List<int> { 3, 2, 1 });
     }
 
     [Fact]
