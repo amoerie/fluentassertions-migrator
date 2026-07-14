@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version-override:
+        description: 'Force a specific version (e.g. 2.0.0). Leave empty to auto-determine from commits.'
+        required: false
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Guard - only release from main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::The release workflow must be run from the 'main' branch, but it was triggered on '${{ github.ref }}'."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Versionize bumps the version in the csproj and creates the version commit and tag
+      # LOCALLY only. We intentionally do not push here: the commit and tag are pushed at
+      # the very end, after the packages have been published, so a failure can never leave
+      # a release tag on main without the corresponding NuGet package / GitHub Release.
+      - name: Run versionize
+        id: versionize
+        run: |
+          if [ -n "${{ inputs.version-override }}" ]; then
+            dotnet versionize --skip-dirty -r "${{ inputs.version-override }}"
+          else
+            dotnet versionize --skip-dirty --exit-insignificant-commits
+          fi
+          VERSION=$(dotnet versionize inspect)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: dotnet build src/FluentAssertionsMigrator.sln --configuration Release
+
+      - name: Test
+        run: dotnet test src/FluentAssertionsMigrator.sln --no-build --configuration Release
+
+      - name: Pack
+        run: dotnet pack src/FluentAssertionsMigrator/FluentAssertionsMigrator.csproj --no-build --configuration Release --output ./nupkg
+
+      - name: Push to NuGet
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      # Only now that publishing succeeded do we make the release permanent on main.
+      - name: Push version commit and tag
+        run: |
+          git push origin HEAD:main
+          git push origin "v${{ steps.versionize.outputs.version }}"
+
+      - name: Extract changelog for release
+        id: changelog
+        run: |
+          # Extract the section for the current version from CHANGELOG.md
+          VERSION="${{ steps.versionize.outputs.version }}"
+          NOTES=$(sed -n "/^## \[$VERSION\]/,/^## \[/{ /^## \[$VERSION\]/d; /^## \[/d; p; }" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="Release v$VERSION"
+          fi
+          # Write to file to avoid quoting issues
+          echo "$NOTES" > release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.versionize.outputs.version }}" \
+            --title "v${{ steps.versionize.outputs.version }}" \
+            --notes-file release-notes.md \
+            ./nupkg/*.nupkg

@@ -1,0 +1,21 @@
+{
+  "changelogAll": false,
+  "changelog": {
+    "header": "FluentAssertions Migrator Changelog",
+    "sections": [
+      { "type": "feat",     "section": "Features",      "hidden": false },
+      { "type": "fix",      "section": "Bug Fixes",     "hidden": false },
+      { "type": "perf",     "section": "Performance",   "hidden": false },
+      { "type": "refactor", "section": "Refactorings",  "hidden": false },
+      { "type": "docs",     "section": "Documentation", "hidden": true },
+      { "type": "ci",       "section": "CI/CD",         "hidden": true },
+      { "type": "chore",    "section": "Chores",        "hidden": true },
+      { "type": "test",     "section": "Tests",         "hidden": true },
+      { "type": "style",    "section": "Style",         "hidden": true }
+    ],
+    "linkTemplates": {
+      "commitLink": "https://github.com/amoerie/fluentassertions-migrator/commit/{commitSha}",
+      "versionTagLink": "https://github.com/amoerie/fluentassertions-migrator/compare/{previousTag}...{currentTag}"
+    }
+  }
+}
