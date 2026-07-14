@@ -1,6 +1,13 @@
 FluentAssertions Migrator Changelog
 
 
+<a name="2.2.0"></a>
+## [2.2.0](https://github.com/amoerie/fluentassertions-migrator/compare/v2.1.1...v2.2.0) (2026-07-14)
+
+### Features
+
+* preserve async on unwrapped Invoking/Awaiting and migrate ContainSingle().Which ([7e25e7c](https://github.com/amoerie/fluentassertions-migrator/commit/7e25e7c68f974ccd9ec222c4919ba67cee480c87))
+
 <a name="2.1.1"></a>
 ## [2.1.1](https://github.com/amoerie/fluentassertions-migrator/compare/v2.1.0...v2.1.1) (2026-07-14)
 
