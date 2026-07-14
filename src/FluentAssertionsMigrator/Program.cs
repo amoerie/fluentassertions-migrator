@@ -750,6 +750,60 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
             return CreateAssertExpression($"Assert.Equal({expectedValue}, {actualValueExpression})", node);
         }
 
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotEqual"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().NotEqual() in {Node}", node);
+            return CreateAssertExpression($"Assert.NotEqual({expectedValue}, {actualValueExpression})", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().HaveLength"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().HaveLength() in {Node}", node);
+            return CreateAssertExpression($"Assert.Equal({expectedValue}, ({actualValueExpression}).Length)", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().BeNullOrWhiteSpace"))
+        {
+            logger.LogTrace("Rewriting .Should().BeNullOrWhiteSpace() in {Node}", node);
+            return CreateAssertExpression($"Assert.True(string.IsNullOrWhiteSpace({actualValueExpression}))", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().NotBeNullOrWhiteSpace"))
+        {
+            logger.LogTrace("Rewriting .Should().NotBeNullOrWhiteSpace() in {Node}", node);
+            return CreateAssertExpression($"Assert.False(string.IsNullOrWhiteSpace({actualValueExpression}))", node);
+        }
+
+        if (BeAssignableToRegex().IsMatch(shouldInvocationExpressionAsString))
+        {
+            logger.LogTrace("Rewriting .Should().BeAssignableTo() in {Node}", node);
+            if (GetGenericTypeArgument(shouldInvocationExpression) is { } genericType)
+            {
+                return CreateAssertExpression($"Assert.IsAssignableFrom<{genericType}>({actualValueExpression})", node);
+            }
+            if (GetTypeOfArgument(shouldInvocationExpression) is { } typeofArgument)
+            {
+                return CreateAssertExpression($"Assert.IsAssignableFrom({typeofArgument}, {actualValueExpression})", node);
+            }
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().HaveCountGreaterThanOrEqualTo")
+            || shouldInvocationExpressionAsString.EndsWith(".Should().HaveCountGreaterOrEqualTo"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().HaveCountGreaterThanOrEqualTo() in {Node}", node);
+            return CreateAssertExpression($"Assert.True(({actualValueExpression}).Count() >= ({expectedValue}))", node);
+        }
+
+        if (shouldInvocationExpressionAsString.EndsWith(".Should().HaveCountGreaterThan"))
+        {
+            var expectedValue = shouldInvocationExpression.ArgumentList.Arguments[0].Expression;
+            logger.LogTrace("Rewriting .Should().HaveCountGreaterThan() in {Node}", node);
+            return CreateAssertExpression($"Assert.True(({actualValueExpression}).Count() > ({expectedValue}))", node);
+        }
+
         return base.VisitInvocationExpression(shouldInvocationExpression);
     }
 
@@ -983,21 +1037,24 @@ public sealed partial class FluentAssertionsSyntaxRewriter(
         }
     }
     
-    [GeneratedRegex(@"\.Should\(\)\.Throw(?:<[^>]+>)?$")]
+    [GeneratedRegex(@"\.Should\(\)\.Throw(?:<.+>)?$")]
     private static partial Regex ThrowRegex();
     
-    [GeneratedRegex(@"\.Should\(\)\.NotThrow(?:<[^>]+>)?$")]
+    [GeneratedRegex(@"\.Should\(\)\.NotThrow(?:<.+>)?$")]
     private static partial Regex NotThrowRegex();
     
-    [GeneratedRegex(@"\.Should\(\)\.ThrowAsync(?:<[^>]+>)?$")]
+    [GeneratedRegex(@"\.Should\(\)\.ThrowAsync(?:<.+>)?$")]
     private static partial Regex ThrowAsyncRegex();
     
-    [GeneratedRegex(@"\.Should\(\)\.NotThrowAsync(?:<[^>]+>)?$")]
+    [GeneratedRegex(@"\.Should\(\)\.NotThrowAsync(?:<.+>)?$")]
     private static partial Regex NotThrowAsyncRegex();
     
-    [GeneratedRegex(@"\.Should\(\)\.BeOfType(?:<[^>]+>)?$")]
+    [GeneratedRegex(@"\.Should\(\)\.BeOfType(?:<.+>)?$")]
     private static partial Regex BeOfTypeRegex();
     
-    [GeneratedRegex(@"\.Should\(\)\.NotBeOfType(?:<[^>]+>)?$")]
+    [GeneratedRegex(@"\.Should\(\)\.NotBeOfType(?:<.+>)?$")]
     private static partial Regex NotBeOfTypeRegex();
+
+    [GeneratedRegex(@"\.Should\(\)\.BeAssignableTo(?:<.+>)?$")]
+    private static partial Regex BeAssignableToRegex();
 }

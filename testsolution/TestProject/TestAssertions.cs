@@ -362,4 +362,86 @@ public class TestAssertions
         var list = new List<int> { 1, 2, 3 };
         list.Should().Equal(new List<int> { 1, 2, 3 });
     }
+
+    [Fact]
+    public void NotEqual()
+    {
+        var value = 42;
+        value.Should().NotEqual(43);
+    }
+
+    [Fact]
+    public void HaveCountGreaterThan()
+    {
+        var list = new List<int> { 1, 2, 3 };
+        list.Should().HaveCountGreaterThan(2);
+    }
+
+    [Fact]
+    public void HaveCountGreaterThanOrEqualTo()
+    {
+        var list = new List<int> { 1, 2, 3 };
+        list.Should().HaveCountGreaterThanOrEqualTo(3);
+    }
+
+    /* Strings */
+    [Fact]
+    public void HaveLength()
+    {
+        var text = "hello";
+        text.Should().HaveLength(5);
+    }
+
+    [Fact]
+    public void BeNullOrWhiteSpace()
+    {
+        var text = "   ";
+        text.Should().BeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void NotBeNullOrWhiteSpace()
+    {
+        var text = "hello";
+        text.Should().NotBeNullOrWhiteSpace();
+    }
+
+    /* Type checks */
+    [Fact]
+    public void BeAssignableTo()
+    {
+        var list = new List<int> { 1, 2, 3 };
+        list.Should().BeAssignableTo<IEnumerable<int>>();
+    }
+
+    /* Nested-generic type arguments (regression tests for the <.+> regex fix) */
+    [Fact]
+    public void BeOfTypeWithNestedGeneric()
+    {
+        object obj = new List<int> { 1, 2, 3 };
+        obj.Should().BeOfType<List<int>>();
+    }
+
+    [Fact]
+    public void NotBeOfTypeWithNestedGeneric()
+    {
+        object obj = new List<int> { 1, 2, 3 };
+        obj.Should().NotBeOfType<Dictionary<string, int>>();
+    }
+
+    [Fact]
+    public void BeAssignableToWithNestedGeneric()
+    {
+        var dictionary = new Dictionary<string, List<int>>();
+        dictionary.Should().BeAssignableTo<IDictionary<string, List<int>>>();
+    }
+
+    [Fact]
+    public void ThrowWithNestedGeneric()
+    {
+        Action action = () => throw new CustomException<List<int>>();
+        action.Should().Throw<CustomException<List<int>>>();
+    }
 }
+
+public sealed class CustomException<T> : Exception;
