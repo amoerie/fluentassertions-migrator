@@ -74,6 +74,9 @@ This tool analyzes your test files and converts FluentAssertions API calls to th
 - `.Should().NotContainEquivalentOf()` → `Assert.DoesNotContain()`
 - `.Should().Equal()` → `Assert.Equal()`
 - `.Should().OnlyContain()` → `Assert.All(collection, x => Assert.True(predicate))`
+- `.Should().NotEqual()` → `Assert.NotEqual()`
+- `.Should().HaveCountGreaterThan()` → `Assert.True(x.Count() > n)`
+- `.Should().HaveCountGreaterThanOrEqualTo()` → `Assert.True(x.Count() >= n)`
 
 ### Dictionaries
 - `.Should().ContainKey()` → `Assert.Contains(key, dictionary)`
@@ -85,10 +88,14 @@ This tool analyzes your test files and converts FluentAssertions API calls to th
 - `.Should().ContainAll()` → `Assert.All(strings, s => Assert.Contains(s, x))`
 - `.Should().MatchRegex()` → `Assert.Matches()`
 - `.Should().NotMatchRegex()` → `Assert.DoesNotMatch()`
+- `.Should().HaveLength()` → `Assert.Equal(n, x.Length)`
+- `.Should().BeNullOrWhiteSpace()` → `Assert.True(string.IsNullOrWhiteSpace(x))`
+- `.Should().NotBeNullOrWhiteSpace()` → `Assert.False(string.IsNullOrWhiteSpace(x))`
 
 ### Type checks
 - `.Should().BeOfType()` → `Assert.True(x is Type)`
 - `.Should().NotBeOfType()` → `Assert.False(x is Type)`
+- `.Should().BeAssignableTo<T>()` → `Assert.IsAssignableFrom<T>(x)`
 
 ### Exceptions
 - `.Should().Throw()` → `Assert.Throws()`
