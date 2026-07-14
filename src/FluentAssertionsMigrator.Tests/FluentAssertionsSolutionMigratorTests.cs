@@ -1,6 +1,6 @@
 using CliWrap;
 using Microsoft.Extensions.Logging;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace FluentAssertionsMigrator.Tests;
 
@@ -51,7 +51,7 @@ public sealed class FluentAssertionsSolutionMigratorTests
             .WithWorkingDirectory(_solutionFile.Directory!.FullName)
             .WithStandardOutputPipe(PipeTarget.ToDelegate(message => _testLogger.LogInformation("[dotnet test]: {Message}", message)))
             .WithStandardErrorPipe(PipeTarget.ToDelegate(message => _testLogger.LogError("[dotnet test]: {Message}", message)))
-            .ExecuteAsync();
+            .ExecuteAsync(TestContext.Current.CancellationToken);
     }
 
     // Helper method for recursive directory copying
